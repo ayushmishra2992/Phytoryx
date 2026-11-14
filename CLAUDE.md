@@ -11,8 +11,8 @@ Final-year research project (Ayush Mishra: ML/backend; Riya Katiyar: literature/
 - `docs/` RESEARCH_REPORT (20 sections), MODEL_CARD, DATASET_SUFFICIENCY, DATA_COLLECTION_PROTOCOL, PAPER_PLAN, DEPLOY. `legacy/` = untouched v2.
 
 ## Commands (Windows)
-- Python env: `RUN_ME.bat` finds one via `scripts/find_python.bat` (project `.venv`, else `%USERPROFILE%\OneDrive\Desktop\Phyllotaxy\.venv`). Use that interpreter; set `PYTHONIOENCODING=utf-8`.
-- Run app: `RUN_ME.bat` (http://127.0.0.1:8000). Tests: `RUN_TESTS.bat` (13 tests). Per-class check: `CHECK_CLASSES.bat`. All experiments: `RUN_EXPERIMENTS.bat` (~5 min on RTX 3050 4 GB from a local folder; ~19 min inside OneDrive, which slows file I/O).
+- Python env: `RUN_ME.bat` finds one via `scripts/find_python.bat` (project `.venv`, else the fallback environment path set in that script). Use that interpreter; set `PYTHONIOENCODING=utf-8`.
+- Run app: `RUN_ME.bat` (http://127.0.0.1:8000). Tests: `RUN_TESTS.bat` (13 tests). Per-class check: `CHECK_CLASSES.bat`. All experiments: `RUN_EXPERIMENTS.bat` (~5 min on RTX 3050 4 GB from a local folder; ~19 min inside a cloud-synced folder such as OneDrive, which slows file I/O).
 - Frontend: `cd frontend && npm ci && npm run build` (Node ≥ 20.9). Port 3000 may already be in use on this machine.
 - Paths: keep the project path short (Windows 260-char limit). `.bat` files must stay CRLF.
 

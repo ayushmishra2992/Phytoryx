@@ -16,9 +16,10 @@ cp .env.local.example .env.local   # adjust NEXT_PUBLIC_API_URL if needed
 npm run dev
 ```
 
-The app expects Ayush's FastAPI backend running at
+The app expects the PHYTORYX FastAPI backend running at
 `http://127.0.0.1:8000` (see the main repo's setup instructions). Start that
-first — `uvicorn src.api:app --reload` — then run `npm run dev` here and
+first (from the repository root, in the project Python environment) with
+`python -m uvicorn api.v2_app:app --port 8000`. This serves the v1 routes used by `/lab` plus the `/v2` routes used by the `/v2` dashboard (`api.main:app` serves the v1 routes only; `RUN_V2.bat` starts the same command). Then run `npm run dev` here and
 open `http://localhost:3000`.
 
 ## Notes

@@ -36,11 +36,23 @@ Stack: Python 3.12 · PyTorch (CUDA 12.6 build; CPU works) · Transformers 5.18 
 
 ## Install and run (Windows)
 Keep the path short (260-character limit). Needs Python 3.12; Node.js ≥ 20.9 for the web UI.
+
+**Prerequisite — Git LFS.** The two model checkpoints (~343 MB each) are stored with Git LFS. Install [Git LFS](https://git-lfs.com/), then run `git lfs install` once before cloning. If the weights show up as ~130-byte text pointer files (for example the clone was made without Git LFS), run `git lfs pull` inside the repository. Without the real weight files the models cannot load and the Docker build stops with an error.
+
 1. `INSTALL.bat` — creates `.venv`, installs PyTorch + requirements (~4 GB, 10–20 min), runs `npm ci`.
 2. `RUN_V2.bat` — backend at http://127.0.0.1:8000 (API docs `/docs`, built-in v1 UI `/`) and the PHYTORYX dashboard at http://localhost:3000/v2. `RUN.bat`/`RUN_ME.bat` start the v1 views.
 3. `RUN_TESTS.bat` (v1) · `RUN_TESTS_V2.bat` (v1 + v2) · `CHECK_CLASSES.bat` · `PACKAGE_FINAL.bat`.
 
 Configuration (`.env.example`): `OPENAQ_API_KEY` (optional, measured stations), `PHYLLO_CORS_ORIGINS`, `PHYLLO_LOAD_AQI_MODEL`, frontend `NEXT_PUBLIC_API_URL`.
+
+## Docker (CPU backend)
+A CPU-only image of the API (`api.v2_app:app`, both ViT checkpoints, PDF reports) is defined by the [`Dockerfile`](Dockerfile). Full details, test results and caveats: [`docs/DOCKER.md`](docs/DOCKER.md). Run `git lfs pull` first so the weight files are real (the build fails otherwise), then:
+```bash
+docker build -t phytoryx-backend .
+docker run -d --name phx --memory=4g --cpus=2 --read-only --tmpfs /tmp -p 7860:7860 \
+  -e PHYLLO_CORS_ORIGINS=https://your-frontend.example phytoryx-backend
+```
+`OPENAQ_API_KEY` is optional and secret (pass it with `-e` at run time, never bake it into the image); `PORT` defaults to 7860. Plan for about 4 GB RAM and 2 CPUs. The image was built and tested as a Linux container on WSL2/amd64 only; it has not been tried on any hosting provider and nothing is deployed.
 
 ## API
 `POST /v2/analyze` (multipart: `file`, optional `lat`, `lon`, `collected_at`, `ftir_file`, `ftir_y_units`, `ftir_wavenumber_scale`) · `POST /v2/ftir/analyse` · `GET /v2/modules` · v1: `POST /predict`, `POST /aqi/compute` (CPCB formula on *measured* concentrations), `GET /health|/evidence|/model-card`. Every v2 section is `{status, reason, …}` with status ∈ AVAILABLE / EXPERIMENTAL / USER_INPUT_REQUIRED / UNAVAILABLE / NOT_SUPPORTED / DISABLED. Measured readings, modelled estimates, leaf-based estimates and visible-condition indicators are never merged.
@@ -49,10 +61,10 @@ Configuration (`.env.example`): `OPENAQ_API_KEY` (optional, measured stations), 
 Held-out, deployed pipeline: 64/65 test images correct (Wilson 95% CI 91.8–99.7%); Alternate 13/14 (the miss is abstained), Opposite 13/13, Whorled 15/15, Not_a_leaf 23/23 rejected; with abstention 41/42 leaves accepted, all correct. These images come from the same photo collection as training, so this shows the pipeline works, **not** that it generalises. Unfamiliar-leaf behaviour (above) is a separate real-data test; PlantDoc has no phyllotaxy labels, so no accuracy is claimed there.
 
 ## Tests
-`tests/run_tests.py` (13 v1 tests) and `tests/run_tests_v2.py` (27 v2 tests) and `tests/run_tests_workflow.py` (22 workflow tests: threshold logic, morphology units, geocoding, environment failures, combined report, PDF); each labelled REAL / SYNTHETIC / MOCK / LIVE. The public package omits the COCO Not_a_leaf images (licence unverified), so the non-leaf checks report **SKIP / NOT TESTED** there; they run in full when the images are present locally. See `PHYTORYX_RELEASE_VERIFICATION.md`.
+`tests/run_tests.py` (13 v1 tests) and `tests/run_tests_v2.py` (27 v2 tests) and `tests/run_tests_workflow.py` (30 workflow tests: threshold logic, morphology units, geocoding, environment failures, combined report, PDF); each labelled REAL / SYNTHETIC / MOCK / LIVE. The public package omits the COCO Not_a_leaf images (licence unverified), so the non-leaf checks report **SKIP / NOT TESTED** there; they run in full when the images are present locally. See `PHYTORYX_RELEASE_VERIFICATION.md`.
 
 ## Data
-See [`v2/data_registry/DATASET_SOURCES.md`](v2/data_registry/DATASET_SOURCES.md), [`dataset_registry.csv`](v2/data_registry/dataset_registry.csv) and [`CITATIONS.md`](CITATIONS.md). Original leaf photographs: 265 unique images, redistribution status `owner-authorised` (based on the project owner's confirmation of rights/permission; no Creative Commons or other public licence is asserted); labels and sample identifiers are preserved unchanged ([`LEAF_PHOTOS_MANIFEST.csv`](v2/data_registry/LEAF_PHOTOS_MANIFEST.csv)); species/plant/date/location/author are not recorded. COCO non-leaf images are used internally and excluded from public redistribution until their licence terms are verified. PlantDoc (CC BY 4.0) and one Zenodo FTIR sample (CC BY 4.0) are included with attribution.
+See [`v2/data_registry/DATASET_SOURCES.md`](v2/data_registry/DATASET_SOURCES.md), [`dataset_registry.csv`](v2/data_registry/dataset_registry.csv) and [`CITATIONS.md`](CITATIONS.md). Original leaf photographs: 265 unique images, redistribution status `owner-authorised` (based on the project owner's confirmation of rights/permission; no Creative Commons or other public licence is asserted); labels and sample identifiers are preserved unchanged ([`LEAF_PHOTOS_MANIFEST.csv`](v2/data_registry/LEAF_PHOTOS_MANIFEST.csv)); species/plant/date/location/author are not recorded. **Folders:** `data/raw/leaf_images` holds the raw photographs as collected, including duplicates (289 files); `data/processed/clean` is the cleaned, de-duplicated set of 265 images (88 Alternate, 83 Opposite, 94 Whorled); `data/processed/split_4class` (deployed model) and `data/processed/split` hold train/validation/test copies of those 265. COCO non-leaf images are used internally and excluded from public redistribution until their licence terms are verified. PlantDoc (CC BY 4.0) and one Zenodo FTIR sample (CC BY 4.0) are included with attribution.
 
 ## The leaf + location workflow (dashboard `/v2`)
 1. **Upload** a leaf photograph, **enter where it was collected** (place name, or "Use my GPS location", or latitude/longitude — manual entry always works), optionally the **collection date/time** and a **scale** (pixels per cm) to get centimetre measurements.
@@ -68,7 +80,7 @@ Environmental honesty rules built into the code: modelled values are never descr
 **Rate limiting:** the expensive `/v2` routes allow 30 requests per 60 s per client IP by default (`PHYLLO_RATE_LIMIT`, `PHYLLO_RATE_WINDOW_S`, `PHYLLO_TRUST_PROXY`; see `.env.example`); exceeding it returns HTTP 429 with `Retry-After`. It is in-memory and per process and does not cover the inherited v1 routes, so a public deployment should also limit at its reverse proxy (`docs/DEPLOYMENT_READINESS.md`).
 
 ## Known limitations
-Image→AQI has no demonstrated skill (withheld); matched pairs exist only for Whorled at one site; colour-only shortcut reaches 95.6% and 10 of 65 test images have near-duplicates in train/val; Not_a_leaf ≠ complete OOD detection; a single isolated leaf may not show the nodes that define phyllotaxy; live OpenAQ, a real-browser click-through, and the Docker image are unverified; React 18 is deprecated in Next.js 16 (not upgraded); modelled air quality can differ sharply from street level and its free tier is non-commercial.
+Image→AQI has no demonstrated skill (withheld); matched pairs exist only for Whorled at one site; colour-only shortcut reaches 95.6% and 10 of 65 test images have near-duplicates in train/val; Not_a_leaf ≠ complete OOD detection; a single isolated leaf may not show the nodes that define phyllotaxy; the `/v2` workflow passed a headless Microsoft Edge browser suite (GPS was simulated) and the Docker image was built and run as a container on WSL2 (`docs/DOCKER.md`), but live OpenAQ retrieval (no key), Safari/Firefox/real devices, concurrent load and any hosting provider are untested; React 18 is deprecated in Next.js 16 (not upgraded); modelled air quality can differ sharply from street level and its free tier is non-commercial.
 
 ## Future scope
 Species- and plant-grouped validation once provenance is annotated; genuinely paired image–FTIR–station data (`docs/DATA_COLLECTION_PROTOCOL.md`); Spiral class and species/dust/health models once licensed labelled data exists; CPCB integration; React 19 migration; deployment (`docs/DEPLOY.md`).
