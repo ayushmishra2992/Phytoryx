@@ -1,0 +1,30 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env.local
+frontend/.vercel/
+
+
+# OS / editors / logs
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.log
+build_hf_space/
+frontend/AGENTS.md
+.env
+.env.local
+
+# COCO non-leaf images: image licences unverified -> never commit or redistribute
+data/processed/**/Not_a_leaf/
+data/raw/leaf_images/not_a_leaf/

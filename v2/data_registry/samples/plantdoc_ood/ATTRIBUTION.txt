@@ -1,0 +1,4 @@
+﻿PlantDoc test-split sample (12 of 236 images) - used only as REAL unfamiliar-leaf test input.
+Source: https://github.com/pratikkayal/PlantDoc-Dataset  Licence: CC BY 4.0 (LICENSE.txt in this folder).
+Citation: Singh, Jain, Jain, Kayal, Kumawat, Batra. PlantDoc: A Dataset for Visual Plant Disease Detection. CoDS-COMAD 2020, ACM. DOI 10.1145/3371158.3371196.
+Changes: files extracted from the GitHub tarball and renamed to Windows-safe names (see scripts/fetch_plantdoc_ood.py); image content unmodified.

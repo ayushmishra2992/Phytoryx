@@ -1,0 +1,125 @@
+{
+  "dataset": "PlantDoc test split (CC BY 4.0), no phyllotaxy labels",
+  "n_images": 236,
+  "decision_status": {
+    "NOT_A_LEAF": 154,
+    "ABSTAIN_UNFAMILIAR": 80,
+    "REJECT_QUALITY": 2
+  },
+  "fraction": {
+    "NOT_A_LEAF": 0.653,
+    "ABSTAIN_UNFAMILIAR": 0.339,
+    "REJECT_QUALITY": 0.008
+  },
+  "accepted_by_class": {},
+  "per_folder": {
+    "Apple Scab Leaf": {
+      "ABSTAIN_UNFAMILIAR": 4,
+      "NOT_A_LEAF": 6
+    },
+    "Apple leaf": {
+      "NOT_A_LEAF": 7,
+      "ABSTAIN_UNFAMILIAR": 2
+    },
+    "Apple rust leaf": {
+      "NOT_A_LEAF": 6,
+      "ABSTAIN_UNFAMILIAR": 4
+    },
+    "Bell_pepper leaf": {
+      "NOT_A_LEAF": 5,
+      "ABSTAIN_UNFAMILIAR": 3
+    },
+    "Bell_pepper leaf spot": {
+      "ABSTAIN_UNFAMILIAR": 4,
+      "NOT_A_LEAF": 5
+    },
+    "Blueberry leaf": {
+      "ABSTAIN_UNFAMILIAR": 7,
+      "NOT_A_LEAF": 4
+    },
+    "Cherry leaf": {
+      "REJECT_QUALITY": 1,
+      "ABSTAIN_UNFAMILIAR": 8,
+      "NOT_A_LEAF": 1
+    },
+    "Corn Gray leaf spot": {
+      "NOT_A_LEAF": 4
+    },
+    "Corn leaf blight": {
+      "NOT_A_LEAF": 11,
+      "ABSTAIN_UNFAMILIAR": 1
+    },
+    "Corn rust leaf": {
+      "NOT_A_LEAF": 10
+    },
+    "Peach leaf": {
+      "ABSTAIN_UNFAMILIAR": 2,
+      "NOT_A_LEAF": 7
+    },
+    "Potato leaf early blight": {
+      "ABSTAIN_UNFAMILIAR": 3,
+      "NOT_A_LEAF": 5
+    },
+    "Potato leaf late blight": {
+      "NOT_A_LEAF": 4,
+      "ABSTAIN_UNFAMILIAR": 4
+    },
+    "Raspberry leaf": {
+      "ABSTAIN_UNFAMILIAR": 4,
+      "NOT_A_LEAF": 3
+    },
+    "Soyabean leaf": {
+      "ABSTAIN_UNFAMILIAR": 3,
+      "REJECT_QUALITY": 1,
+      "NOT_A_LEAF": 4
+    },
+    "Squash Powdery mildew leaf": {
+      "NOT_A_LEAF": 5,
+      "ABSTAIN_UNFAMILIAR": 1
+    },
+    "Strawberry leaf": {
+      "NOT_A_LEAF": 7,
+      "ABSTAIN_UNFAMILIAR": 1
+    },
+    "Tomato Early blight leaf": {
+      "NOT_A_LEAF": 6,
+      "ABSTAIN_UNFAMILIAR": 3
+    },
+    "Tomato Septoria leaf spot": {
+      "NOT_A_LEAF": 7,
+      "ABSTAIN_UNFAMILIAR": 4
+    },
+    "Tomato leaf": {
+      "ABSTAIN_UNFAMILIAR": 4,
+      "NOT_A_LEAF": 4
+    },
+    "Tomato leaf bacterial spot": {
+      "NOT_A_LEAF": 8,
+      "ABSTAIN_UNFAMILIAR": 1
+    },
+    "Tomato leaf late blight": {
+      "NOT_A_LEAF": 9,
+      "ABSTAIN_UNFAMILIAR": 1
+    },
+    "Tomato leaf mosaic virus": {
+      "ABSTAIN_UNFAMILIAR": 3,
+      "NOT_A_LEAF": 7
+    },
+    "Tomato leaf yellow virus": {
+      "ABSTAIN_UNFAMILIAR": 4,
+      "NOT_A_LEAF": 2
+    },
+    "Tomato mold leaf": {
+      "NOT_A_LEAF": 6
+    },
+    "grape leaf": {
+      "NOT_A_LEAF": 7,
+      "ABSTAIN_UNFAMILIAR": 5
+    },
+    "grape leaf black rot": {
+      "NOT_A_LEAF": 4,
+      "ABSTAIN_UNFAMILIAR": 4
+    }
+  },
+  "note": "Accepted answers cannot be verified (no labels). A high ACCEPT fraction on unfamiliar species/field photos would indicate over-confidence."
+}
