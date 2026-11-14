@@ -3,8 +3,14 @@
 **/__pycache__
 frontend
 data
-docs
+docs/*
+!docs/MODEL_CARD.md
 experiments
 tests
+scripts
+v2
 *.bat
+*.pdf
 build_hf_space
+.env
+.env.*
