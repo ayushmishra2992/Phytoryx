@@ -76,14 +76,26 @@ class PhylloEngine:
         maha_s = float(self.maha.score(emb)[0])
         knn_s = float(self.knn.score(emb)[0])
         in_dist = maha_s >= self.thr["mahalanobis"] and knn_s >= self.thr["knn"]
+        # Minimum P(Not_a_leaf) for a NOT_A_LEAF verdict. Absent from older artifacts -> previous behaviour (argmax decides).
+        nl_thr = self.thr.get("nonleaf_probability")
+        p_nl = float(p_cal[self.classes.index("Not_a_leaf")])
 
         reasons = []
         if not q.passed:
             status = "REJECT_QUALITY"
             reasons += q.issues
-        elif top_class == "Not_a_leaf":
+        elif top_class == "Not_a_leaf" and (nl_thr is None or p_nl >= nl_thr):
             status = "NOT_A_LEAF"
             reasons.append(f"The classifier assigns {conf:.0%} calibrated probability to 'Not_a_leaf'.")
+        elif top_class == "Not_a_leaf" and not in_dist:
+            # weak 'Not_a_leaf' plurality (below the development-selected threshold) on an unfamiliar image: do not claim it is not a leaf
+            status = "ABSTAIN_UNFAMILIAR"
+            reasons.append(f"'Not_a_leaf' is only the top class with {p_nl:.0%} calibrated probability (below the {nl_thr:.0%} needed to call an image a non-leaf); "
+                           "the image may be a real leaf of an unfamiliar plant or photographing style.")
+            reasons.append("The embedding is far from every validated leaf class, so no supported phyllotaxy class is given.")
+        elif top_class == "Not_a_leaf":
+            status = "ABSTAIN_UNCERTAIN"
+            reasons.append(f"'Not_a_leaf' is the top class with only {p_nl:.0%} probability; the evidence is too weak to decide.")
         elif not in_dist:
             status = "ABSTAIN_UNFAMILIAR"
             if maha_s < self.thr["mahalanobis"]:
@@ -100,6 +112,21 @@ class PhylloEngine:
             reasons.append(f"Calibrated confidence {conf:.0%} ≥ {self.thr['confidence']:.0%} and the embedding lies inside the validated leaf distribution.")
         reasons += q.warnings
 
+        # Additive diagnostic: how strongly does the evidence say "not a leaf" vs "an (unsupported) leaf" vs "a supported leaf"?
+        if status == "NOT_A_LEAF":
+            assess = "likely_non_leaf"
+        elif status == "REJECT_QUALITY":
+            assess = "unassessed_quality"
+        elif in_dist and p_nl < 0.5:
+            assess = "likely_supported_leaf"
+        elif nl_thr is not None and p_nl < nl_thr and not in_dist:
+            assess = "likely_leaf_unfamiliar_or_unsupported"
+        else:
+            assess = "unclear"
+        leaf_evidence = {"p_not_a_leaf": round(p_nl, 4), "p_leaf": round(1 - p_nl, 4), "nonleaf_threshold": nl_thr, "assessment": assess,
+                         "note": ("Assessment is based on the classifier's Not_a_leaf probability and familiarity scores; it has only been checked against "
+                                  "generic non-leaf objects, not leaf-like ones.")}
+
         explanation = None
         if explain:
             mask = attention_rollout(enc["attentions"][0], discard_ratio=0.0)
@@ -112,7 +139,7 @@ class PhylloEngine:
 
         accepted = status == "ACCEPT"
         return {
-            "decision": {"status": status, "accepted": accepted, "headline": HEADLINES[status], "reasons": reasons},
+            "decision": {"status": status, "accepted": accepted, "headline": HEADLINES[status], "reasons": reasons, "leaf_evidence": leaf_evidence},
             "phyllotaxy": {
                 "class": top_class,
                 "accepted": accepted,

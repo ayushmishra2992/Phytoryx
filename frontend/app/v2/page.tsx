@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { analyze, reportHtml, V2Error, type AnalyzeResponse, type ModuleStatus, type Section } from "@/lib/v2";
+import { analyze, downloadPdf, reportHtml, V2Error, type AnalyzeResponse, type ModuleStatus, type Section } from "@/lib/v2";
 
 const BADGE: Record<ModuleStatus, { text: string; cls: string }> = {
   AVAILABLE: { text: "Available", cls: "bg-sage-100 text-canopy-800" },
@@ -63,6 +63,10 @@ export default function V2Page() {
   const [lat, setLat] = useState("");
   const [lon, setLon] = useState("");
   const [when, setWhen] = useState("");
+  const [place, setPlace] = useState("");
+  const [ppcm, setPpcm] = useState("");
+  const [gpsMsg, setGpsMsg] = useState("");
+  const [pdfBusy, setPdfBusy] = useState(false);
   const [units, setUnits] = useState("absorbance");
   const [scale, setScale] = useState("");
   const [err, setErr] = useState("");
@@ -81,12 +85,31 @@ export default function V2Page() {
     if (!file) return;
     setBusy(true); setErr("");
     try {
-      setRes(await analyze({ file, lat, lon, collectedAt: when, ftir, ftirUnits: units, ftirWavenumberScale: scale }));
+      setRes(await analyze({ file, place, lat, lon, collectedAt: when, pixelsPerCm: ppcm, ftir, ftirUnits: units, ftirWavenumberScale: scale }));
     } catch (e) {
       setErr(e instanceof V2Error ? e.message : "Something unexpected went wrong.");
     } finally {
       setBusy(false);
     }
+  };
+
+  const useGps = () => {
+    if (!("geolocation" in navigator)) return setGpsMsg("This browser has no GPS support. Type a place name or coordinates instead.");
+    setGpsMsg("Requesting your location…");
+    navigator.geolocation.getCurrentPosition(
+      (p) => {
+        setLat(p.coords.latitude.toFixed(5)); setLon(p.coords.longitude.toFixed(5));
+        setGpsMsg(`GPS location filled in (±${Math.round(p.coords.accuracy)} m). Make sure this is where the leaf was collected.`);
+      },
+      (e) => setGpsMsg(e.code === 1 ? "Location permission denied. Type a place name or coordinates instead." : "Could not get your location. Type a place name or coordinates instead."),
+      { timeout: 10000 }
+    );
+  };
+
+  const getPdf = async () => {
+    if (!res) return;
+    setPdfBusy(true);
+    try { await downloadPdf(res); } catch (e) { setErr(e instanceof V2Error ? e.message : "PDF download failed."); } finally { setPdfBusy(false); }
   };
 
   const reset = () => {
@@ -127,12 +150,20 @@ export default function V2Page() {
         </div>
 
         <div className="rounded-2xl border border-sage-200 bg-white p-5">
-          <h2 className="font-display text-lg text-canopy-800">2 · Optional context</h2>
+          <h2 className="font-display text-lg text-canopy-800">2 · Where was the leaf collected?</h2>
           <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-            <label className="text-moss-500">Latitude<input value={lat} onChange={(e) => setLat(e.target.value)} placeholder="e.g. 28.46" className="mt-1 w-full rounded-lg border border-sage-200 px-2 py-1.5" /></label>
-            <label className="text-moss-500">Longitude<input value={lon} onChange={(e) => setLon(e.target.value)} placeholder="e.g. 77.03" className="mt-1 w-full rounded-lg border border-sage-200 px-2 py-1.5" /></label>
-            <label className="col-span-2 text-moss-500">Collection date/time (recorded in the report; ambient data is the latest available)
+            <label className="col-span-2 text-moss-500">Place name
+              <input value={place} onChange={(e) => setPlace(e.target.value)} placeholder="e.g. Gurugram, Haryana" className="mt-1 w-full rounded-lg border border-sage-200 px-2 py-1.5" /></label>
+            <div className="col-span-2 flex flex-wrap items-center gap-2">
+              <button type="button" onClick={useGps} className="rounded-full border border-sage-200 px-3 py-1 text-xs font-semibold text-moss-600 hover:border-moss-400">Use my GPS location</button>
+              {gpsMsg && <span role="status" className="text-xs text-moss-500">{gpsMsg}</span>}
+            </div>
+            <label className="text-moss-500">Latitude (optional)<input value={lat} onChange={(e) => setLat(e.target.value)} placeholder="e.g. 28.46" className="mt-1 w-full rounded-lg border border-sage-200 px-2 py-1.5" /></label>
+            <label className="text-moss-500">Longitude (optional)<input value={lon} onChange={(e) => setLon(e.target.value)} placeholder="e.g. 77.03" className="mt-1 w-full rounded-lg border border-sage-200 px-2 py-1.5" /></label>
+            <label className="col-span-2 text-moss-500">Collection date/time (optional, local time at the location)
               <input value={when} onChange={(e) => setWhen(e.target.value)} placeholder="2026-03-01 17:00" className="mt-1 w-full rounded-lg border border-sage-200 px-2 py-1.5" /></label>
+            <label className="col-span-2 text-moss-500">Photo scale, pixels per cm (optional — enables cm measurements)
+              <input value={ppcm} onChange={(e) => setPpcm(e.target.value)} placeholder="e.g. 52 (from a ruler in the leaf plane)" className="mt-1 w-full rounded-lg border border-sage-200 px-2 py-1.5" /></label>
             <label className="col-span-2 text-moss-500">FTIR spectrum (CSV/TXT, XLSX, JCAMP-DX)
               <input type="file" accept=".csv,.tsv,.txt,.dat,.xlsx,.jdx,.dx" onChange={(e) => setFtir(e.target.files?.[0] ?? null)} className="mt-1 w-full text-xs" /></label>
             <label className="text-moss-500">FTIR y-axis
@@ -155,6 +186,33 @@ export default function V2Page() {
 
       {res && ph && (
         <div className="mt-8 grid gap-4 md:grid-cols-2">
+          <div className="md:col-span-2">
+            <section className="rounded-2xl border border-sage-200 bg-white p-5">
+              <div className="flex flex-wrap items-start gap-4">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={`data:image/jpeg;base64,${res.image_preview_jpeg_base64}`} alt="Analysed leaf" className="h-28 w-28 rounded-lg object-cover" />
+                <div className="min-w-0 flex-1 text-xs text-moss-500">
+                  <p className="font-display text-lg text-canopy-800">Report {res.report_id}</p>
+                  <p>Generated {res.generated_utc} UTC · {res.filename}</p>
+                  <p>Location: <b>{res.location.label ?? "not supplied"}</b>{res.location.lat != null && <> ({Number(res.location.lat).toFixed(4)}, {Number(res.location.lon).toFixed(4)}) · {res.location.source}</>}</p>
+                  {res.location.status !== "AVAILABLE" && <p className="text-red-700">{res.location.reason}</p>}
+                  {res.location.attribution && <p className="text-moss-400">Location data based on <a className="underline" href="https://www.geonames.org/" target="_blank" rel="noopener noreferrer">GeoNames</a> via the Open-Meteo Geocoding API (CC BY 4.0).</p>}
+                  <p>Collection time: {res.collected_at ?? "not supplied — environmental values describe current conditions"}</p>
+                </div>
+              </div>
+            </section>
+          </div>
+          <div className="md:col-span-2">
+            <section className="rounded-2xl border border-moss-400 bg-sage-100/60 p-5">
+              <h3 className="font-display text-lg text-canopy-800">Combined interpretation</h3>
+              <ul className="mt-2 list-disc pl-5 text-sm text-canopy-800">{(res.combined_interpretation.summary as string[]).map((s) => <li key={s}>{s}</li>)}</ul>
+              {(res.combined_interpretation.missing_information as string[]).length > 0 && (<>
+                <p className="mt-3 text-xs font-semibold text-moss-600">Missing or unavailable</p>
+                <ul className="list-disc pl-5 text-xs text-moss-500">{(res.combined_interpretation.missing_information as string[]).map((s) => <li key={s}>{s}</li>)}</ul></>)}
+              <p className="mt-3 text-xs font-semibold text-moss-600">Cautions</p>
+              <ul className="list-disc pl-5 text-xs text-moss-500">{(res.combined_interpretation.cautions as string[]).map((s) => <li key={s}>{s}</li>)}</ul>
+            </section>
+          </div>
           <Card title="Image quality" sec={res.image_quality}>
             <p className="text-xs text-moss-500">sharpness {res.image_quality.sharpness} · noise {res.image_quality.noise}</p>
             {(res.image_quality.warnings as string[] | undefined)?.map((w) => <p key={w} className="text-xs text-moss-400">⚠ {w}</p>)}
@@ -185,12 +243,18 @@ export default function V2Page() {
           <Card title="Species identification" sec={res.species} />
           <Card title="Leaf morphology" sec={res.morphology}>
             {res.morphology.status === "AVAILABLE" && (
-              <ul className="text-xs text-moss-500">
-                <li>Leaf area fraction of frame: {(res.morphology.leaf_area_fraction * 100).toFixed(1)}%</li>
-                <li>Aspect ratio {res.morphology.aspect_ratio} · solidity {res.morphology.solidity} · eccentricity {res.morphology.eccentricity}</li>
-                {res.morphology.touches_image_border && <li>Region touches the image border (leaf may be cropped).</li>}
-                <li className="mt-1 text-moss-400">{res.morphology.caveat}</li>
-              </ul>)}
+              <div className="text-xs text-moss-500">
+                <table className="w-full"><tbody>
+                  <tr><td>Area</td><td className="text-right tabular-nums">{res.morphology.area_px} px²</td></tr>
+                  <tr><td>Perimeter</td><td className="text-right tabular-nums">{res.morphology.perimeter_px} px</td></tr>
+                  <tr><td>Length × width</td><td className="text-right tabular-nums">{res.morphology.length_px} × {res.morphology.width_px} px</td></tr>
+                  <tr><td>Aspect ratio · solidity · circularity</td><td className="text-right tabular-nums">{res.morphology.aspect_ratio} · {res.morphology.solidity} · {res.morphology.circularity}</td></tr>
+                  <tr><td>Leaf share of frame</td><td className="text-right tabular-nums">{(res.morphology.leaf_area_fraction * 100).toFixed(1)}%</td></tr>
+                  {res.morphology.physical && <tr><td>Physical (from your scale)</td><td className="text-right tabular-nums">{res.morphology.physical.length_cm} × {res.morphology.physical.width_cm} cm · {res.morphology.physical.area_cm2} cm²</td></tr>}
+                </tbody></table>
+                {(res.morphology.reliability_flags as string[]).map((f) => <p key={f} className="mt-1 text-red-700">⚠ {f}</p>)}
+                <p className="mt-1 text-moss-400">Units: {res.morphology.units}. {res.morphology.caveat}</p>
+              </div>)}
           </Card>
 
           <Card title="Visible leaf condition" sec={res.leaf_health}>
@@ -219,6 +283,7 @@ export default function V2Page() {
                       <tr key={r.parameter}><td>{r.parameter}</td><td className="tabular-nums">{r.value}</td><td>{r.unit}</td><td>{r.timestamp_utc}</td></tr>))}
                   </tbody></table>
                   {env!.indicative_index_from_latest && <p className="mt-2">Indicative index from latest values: <b>{env!.indicative_index_from_latest.aqi}</b> ({env!.indicative_index_from_latest.category}). {env!.indicative_index_from_latest.note}</p>}
+                  {env!.index_note && <p className="mt-1 text-moss-500">{env!.index_note}</p>}
                   <p className="mt-1 text-moss-400">{env!.representativeness_note} {env!.time_note}</p>
                   <p className="mt-1 text-moss-400">Source: {env!.source} · retrieved {env!.retrieved_utc}</p>
                 </div>)}
@@ -234,7 +299,11 @@ export default function V2Page() {
                       <tr key={r.parameter}><td>{r.parameter}</td><td className="tabular-nums">{r.value}</td><td>{r.unit}</td></tr>))}
                   </tbody></table>
                   <p className="mt-1 text-moss-400">Value time (local): {res.modelled_environment.value_time_local} · grid point {res.modelled_environment.model_grid_point?.latitude}, {res.modelled_environment.model_grid_point?.longitude}</p>
-                  <p className="mt-1 text-moss-400">{res.modelled_environment.attribution}</p>
+                  {res.modelled_environment.index_info && (
+                    <p className="mt-1 font-semibold text-canopy-800">Provider-computed indices: {Object.entries(res.modelled_environment.index_info as Record<string, { value: number; category: string }>).map(([k, v]) => `${k} ${v.value} (${v.category})`).join("; ")}</p>)}
+                  {res.modelled_environment.index_note && <p className="mt-1 text-moss-400">{res.modelled_environment.index_note}</p>}
+                  {res.modelled_environment.validation_note && <p className="mt-1 rounded-lg bg-glow-300/40 p-2 text-canopy-800"><b>Validation note:</b> {res.modelled_environment.validation_note}</p>}
+                  <p className="mt-1 text-moss-400">{res.modelled_environment.attribution} <a className="underline" href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Weather data by Open-Meteo.com</a></p>
                 </div>)}
             </Card>
           </div>
@@ -260,7 +329,8 @@ export default function V2Page() {
             <h3 className="font-display text-lg text-canopy-800">Report</h3>
             <p className="mt-2 text-xs text-moss-500">{res.separation_notice}</p>
             <p className="mt-1 text-xs text-moss-400">{res.filename} · {res.latency_ms} ms · backend v{res.version}</p>
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" disabled={pdfBusy} onClick={getPdf} className="rounded-full bg-moss-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-moss-500 disabled:bg-sage-200">{pdfBusy ? "Preparing PDF…" : "Download PDF report"}</button>
               <button type="button" onClick={() => download("phytoryx-report.json", "application/json", JSON.stringify(res, null, 2))} className="rounded-full border border-sage-200 px-4 py-1.5 text-xs font-semibold text-moss-600 hover:border-moss-400">Download JSON</button>
               <button type="button" onClick={() => download("phytoryx-report.html", "text/html", reportHtml(res))} className="rounded-full border border-sage-200 px-4 py-1.5 text-xs font-semibold text-moss-600 hover:border-moss-400">Download report (HTML)</button>
             </div>

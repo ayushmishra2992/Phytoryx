@@ -6,11 +6,13 @@ v1 routes (/predict, /aqi/compute, /evidence, /health, /model-card, UI) behave e
 import logging
 import time
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import Response
 
 from api.main import ALLOWED, MAX_BYTES, STATE, app  # noqa: F401  (importing api.main leaves v1 untouched)
 from phyllo_v2 import AVAILABLE, DISABLED, EXPERIMENTAL, NOT_SUPPORTED, USER_INPUT_REQUIRED, UNAVAILABLE, __version__, section
-from phyllo_v2 import environment, ftir, imaging
+from phyllo_v2 import environment, ftir, imaging, interpretation, report
+from phyllo_v2.ratelimit import rate_limit
 
 log = logging.getLogger("phyllo.v2")
 router = APIRouter(prefix="/v2", tags=["v2"])
@@ -25,8 +27,9 @@ GUIDANCE = {
     "REJECT_QUALITY": ["The photo failed the quality gate (blur, exposure, size or noise).", "Retake in good light, hold still, and fill the frame with the branch."],
     "NOT_A_LEAF": ["The classifier does not recognise this as a validated leaf photo."],
 }
-UNFAMILIAR_CAUTION = ("On 236 real leaf photos of other species (PlantDoc test split), the classifier never accepted an answer and called 65% of them "
-                      "'not a leaf' - so this verdict does not prove the object is not a leaf; it means the photo is outside what was validated.")
+UNFAMILIAR_CAUTION = ("In an earlier evaluation of 236 real leaf photos of other species (PlantDoc test split), none was accepted as a supported class, "
+                      "and the previous decision rule called 65% of them 'not a leaf' from weak votes. 'Not a leaf' now needs a minimum probability, but "
+                      "that rule has only been checked against generic (COCO) non-leaf objects, not leaf-like ones.")
 
 
 def _phyllotaxy_section(r, img=None):
@@ -36,15 +39,8 @@ def _phyllotaxy_section(r, img=None):
     familiarity = {"in_distribution": rel["in_distribution"], "mahalanobis_score": rel["mahalanobis_score"],
                    "mahalanobis_threshold": rel["mahalanobis_threshold"], "knn_similarity": rel["knn_similarity"],
                    "knn_threshold": rel["knn_threshold"]}
-    if st == "NOT_A_LEAF" and img is not None:
-        ll = imaging.leaf_like(img)
-        if ll["leaf_like"]:   # wording only; never promotes to ACCEPT
-            return section(AVAILABLE, "The classifier did not recognise this as a validated leaf photo, but the image contains a large green leaf-like region, "
-                           "so 'not a leaf' is treated as unreliable.", label="Unknown/Uncertain", decision_status=st, calibrated_confidence=p["confidence"],
-                           probabilities=p["probabilities"], familiarity=familiarity, leaf_like_check=ll, caution=UNFAMILIAR_CAUTION,
-                           guidance=GUIDANCE["ABSTAIN_UNFAMILIAR"], supported_classes=["Alternate", "Opposite", "Whorled", "Not_a_leaf"],
-                           spiral="NOT_SUPPORTED: no genuinely labelled Spiral data has been acquired, so Spiral cannot be predicted.")
     base = dict(decision_status=st, calibrated_confidence=p["confidence"], probabilities=p["probabilities"],
+                leaf_evidence=r["decision"].get("leaf_evidence"), decision_reasons=r["decision"]["reasons"],
                 supported_classes=["Alternate", "Opposite", "Whorled", "Not_a_leaf"],
                 spiral="NOT_SUPPORTED: no genuinely labelled Spiral data has been acquired, so Spiral cannot be predicted.",
                 context_note="Phyllotaxy is defined by how leaves attach along a stem. An isolated leaf blade or a close-up may not "
@@ -112,32 +108,64 @@ def modules():
         "leaf_based_aqi": section(NOT_SUPPORTED, "No demonstrated skill (46 pairs, permutation p = 0.45); withheld.")}}
 
 
-@router.post("/ftir/analyse")
+@router.post("/ftir/analyse", dependencies=[Depends(rate_limit)])
 async def ftir_only(ftir_file: UploadFile = File(...), y_units: str = Form("absorbance"), column: int = Form(1),
                     wavenumber_scale: float | None = Form(None)):
     return await _read_spectrum(ftir_file, y_units, column, wavenumber_scale)
 
 
-@router.post("/analyze")
+@router.post("/analyze", dependencies=[Depends(rate_limit)])
 async def analyze(file: UploadFile = File(...), lat: float | None = Form(None), lon: float | None = Form(None),
-                  collected_at: str | None = Form(None), ftir_file: UploadFile | None = File(None),
+                  place: str | None = Form(None), collected_at: str | None = Form(None), pixels_per_cm: float | None = Form(None),
+                  ftir_file: UploadFile | None = File(None),
                   ftir_y_units: str = Form("absorbance"), ftir_column: int = Form(1), ftir_wavenumber_scale: float | None = Form(None)):
     t0 = time.time()
     img = await _read_image(file)
     engine = STATE["engine"]
     r = engine.predict(img, explain=False)
-    accepted_leaf = r["decision"]["status"] == "ACCEPT"
     quality = r["quality"]
     phy = _phyllotaxy_section(r, img)
-    usable = quality["passed"] and phy["label"] != "Not_a_leaf"   # leaf-like images re-worded as Unknown/Uncertain still get measurements
+    # leaf-like images that the engine could not classify (ABSTAIN_*) still get measurements; confirmed non-leaf/unusable images do not
+    usable = quality["passed"] and r["decision"]["status"] != "NOT_A_LEAF"
+    report_id, generated_utc = report.new_report_id()
 
-    out = {"version": __version__, "filename": file.filename,
+    # ---- location: explicit coordinates win; otherwise resolve the typed place name
+    geo = None
+    if lat is not None and lon is not None:
+        location = {"status": "AVAILABLE", "lat": lat, "lon": lon, "label": (place or "").strip() or f"{lat:.4f}, {lon:.4f}",
+                    "source": "user-supplied coordinates" + (" (e.g. GPS)" if not place else "")}
+    elif place and place.strip():
+        geo = environment.geocode(place)
+        if geo["status"] == "AVAILABLE":
+            g = geo["resolved"]
+            lat, lon = g["latitude"], g["longitude"]
+            location = {"status": "AVAILABLE", "lat": lat, "lon": lon, "source": "geocoded from the typed place name (Open-Meteo Geocoding)",
+                        "label": ", ".join(x for x in (g["name"], g.get("admin1"), g.get("country")) if x), "geocoding": geo,
+                        "attribution": geo["attribution"]}
+        else:
+            location = {"status": geo["status"], "lat": None, "lon": None, "label": None, "source": "geocoding failed", "reason": geo["reason"]}
+    else:
+        location = {"status": "USER_INPUT_REQUIRED", "lat": None, "lon": None, "label": None, "source": "none",
+                    "reason": "No collection location supplied (enter a place name, coordinates, or use GPS)."}
+
+    import base64
+    import io as _io
+    thumb = img.copy()
+    thumb.thumbnail((640, 640))
+    buf = _io.BytesIO()
+    thumb.save(buf, "JPEG", quality=80)
+
+    out = {"version": __version__, "report_id": report_id, "generated_utc": generated_utc, "filename": file.filename,
+           "collected_at": collected_at, "location": location, "image_preview_jpeg_base64": base64.b64encode(buf.getvalue()).decode("ascii"),
            "image_quality": section(AVAILABLE if quality["passed"] else UNAVAILABLE,
                                     "Image passed the quality gate." if quality["passed"] else "Image failed the quality gate: " + "; ".join(quality["issues"]),
                                     sharpness=quality["sharpness"], noise=quality["noise"], warnings=quality["warnings"]),
            "phyllotaxy": phy, "species": imaging.species_section()}
     if usable:
-        out["morphology"] = imaging.morphology_section(img)
+        try:
+            out["morphology"] = imaging.morphology_section(img, pixels_per_cm)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc))
         out["leaf_health"] = imaging.health_section(img)
     else:
         why = "Skipped: the image is not a usable leaf photo (failed quality gate or not a leaf)."
@@ -153,9 +181,33 @@ async def analyze(file: UploadFile = File(...), lat: float | None = Form(None), 
     out["biological"] = imaging.biological_section()
     out["separation_notice"] = ("Ambient station readings, any leaf-based estimate, visible-condition indicators and FTIR band ranges are different "
                                 "kinds of evidence and are never combined into one number.")
+    out["combined_interpretation"] = interpretation.build(out)
     out["latency_ms"] = round((time.time() - t0) * 1000, 1)
     log.info("v2 analyze %s status=%s latency=%sms", file.filename, r["decision"]["status"], out["latency_ms"])
     return out
+
+
+@router.get("/geocode", dependencies=[Depends(rate_limit)])
+def geocode_endpoint(q: str):
+    return environment.geocode(q)
+
+
+REPORT_REQUIRED = ("report_id", "phyllotaxy", "morphology", "image_quality", "ambient_environment", "modelled_environment", "combined_interpretation")
+
+
+@router.post("/report/pdf", dependencies=[Depends(rate_limit)])
+def report_pdf(analysis: dict = Body(...)):
+    """Render the PDF report from a /v2/analyze result (the client posts back the result it received)."""
+    missing = [k for k in REPORT_REQUIRED if k not in analysis]
+    if missing:
+        raise HTTPException(400, f"Not a PHYTORYX analysis result; missing fields: {', '.join(missing)}")
+    try:
+        pdf = report.build_pdf(analysis)
+    except Exception as exc:  # noqa: BLE001  any malformed client-supplied structure must be a 400, never a 500
+        log.warning("report_pdf rejected malformed analysis: %r", exc)
+        raise HTTPException(400, f"Analysis result is incomplete or malformed: {exc!r}")
+    return Response(pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'attachment; filename="PHYTORYX-{analysis["report_id"]}.pdf"'})
 
 
 app.include_router(router)

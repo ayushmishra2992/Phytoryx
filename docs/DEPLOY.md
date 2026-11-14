@@ -27,9 +27,9 @@ Notes
 
 ## 3. Deploy online
 
-The backend runs PyTorch + two ViT-B/16 models (~2 GB RAM; ~1.2 GB with `PHYLLO_LOAD_AQI_MODEL=0`). It does **not** fit Vercel/Netlify serverless functions or 512 MB free tiers. Recommended free combination:
+The backend runs PyTorch + two ViT-B/16 models (~2 GB RAM; ~1.2 GB with `PHYLLO_LOAD_AQI_MODEL=0`). It does **not** fit Vercel/Netlify serverless functions or 512 MB free tiers. **Read `DEPLOYMENT_READINESS.md` first**: it records the verified licence terms, measured resource needs and the costs/limits of each option. Correction to the original text of this file: according to Hugging Face's documentation (read 2026-11-14) the CPU Basic hardware (2 vCPU, 16 GB, non-persistent disk, sleeps when idle) is free, but *creating a Docker Space requires a paid plan*, so this option is not free. The image must start `api.v2_app:app` (the `Dockerfile` now does; it has not been built here).
 
-### Backend → Hugging Face Spaces (Docker, free CPU, 16 GB RAM)
+### Backend → Hugging Face Spaces (Docker; CPU Basic hardware is free but a paid plan is needed to create a Docker Space)
 1. huggingface.co → New Space → SDK **Docker** → Blank. Note its name `<user>/<space-name>`.
 2. Build the backend-only upload folder and upload it (from this project folder, using the project's Python):
    ```bash

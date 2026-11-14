@@ -11,7 +11,8 @@
   "thresholds": {
     "mahalanobis": -6947.828549646905,
     "knn": 0.7981500625610352,
-    "confidence": 0.9
+    "confidence": 0.9,
+    "nonleaf_probability": 0.9
   },
   "knn_k": 5,
   "fit_on": "4-class TRAIN leaf embeddings; thresholds on VAL leaves (95% TPR)",
@@ -48,5 +49,6 @@
     }
   },
   "ece_test_raw": 0.2053380393064939,
-  "ece_test_calibrated": 0.033317240384908825
+  "ece_test_calibrated": 0.033317240384908825,
+  "nonleaf_probability_provenance": "selected on development data only (PlantDoc train minus exact test duplicates, n=2330; COCO validation, n=22); pre-registered rule; see results/v2_nonleaf_threshold.json; NOT tuned on PlantDoc test or COCO test"
 }

@@ -40,7 +40,11 @@ def leaf_mask(rgb):
     return lab == sizes.argmax()
 
 
-def morphology_section(img):
+def morphology_section(img, pixels_per_cm=None):
+    """Leaf measurements of the largest colour-segmented region, reported in ORIGINAL image pixels (the analysis copy is downscaled to
+    <= 512 px and every length/area is scaled back). Physical units appear only if the caller supplies a valid scale (pixels_per_cm)."""
+    if pixels_per_cm is not None and not (0 < float(pixels_per_cm) <= 100000):
+        raise ValueError("pixels_per_cm must be a positive number (pixels per centimetre at the leaf plane).")
     rgb = _prep(img)
     m = leaf_mask(rgb)
     if m is None or m.mean() < 0.02:
@@ -48,15 +52,46 @@ def morphology_section(img):
     frac = float(m.mean())
     if frac > 0.95:
         return section(UNAVAILABLE, "Foreground covers almost the whole frame; leaf outline cannot be separated from background.")
+    sx, sy = img.width / rgb.shape[1], img.height / rgb.shape[0]
+    sl, sa = (sx + sy) / 2, sx * sy              # length and area scale factors back to original pixels
     p = measure.regionprops(m.astype(np.uint8))[0]
     h, w = m.shape
     minr, minc, maxr, maxc = p.bbox
-    return section(AVAILABLE, "Pixel-space measurements of the largest segmented region; no physical scale is known, so no cm/mm values are reported.",
-                   leaf_area_fraction=round(frac, 4), aspect_ratio=round(float(p.axis_major_length / max(p.axis_minor_length, 1e-6)), 3),
-                   solidity=round(float(p.solidity), 3), eccentricity=round(float(p.eccentricity), 3),
-                   touches_image_border=bool(minr == 0 or minc == 0 or maxr == h or maxc == w),
-                   mean_rgb_in_leaf=[int(x) for x in rgb[m].mean(axis=0)],
-                   caveat="Segmentation is a colour threshold; cluttered backgrounds, shadows or multiple leaves can mislead it.")
+    area, per = float(p.area) * sa, float(p.perimeter) * sl
+    length, width = float(p.axis_major_length) * sl, float(p.axis_minor_length) * sl
+    hsv = color.rgb2hsv(rgb)
+    flags = []
+    if minr == 0 or minc == 0 or maxr == h or maxc == w:
+        flags.append("the segmented region touches the image border (leaf may be cropped; area/length are lower bounds)")
+    if frac < 0.05:
+        flags.append("the segmented region is very small in the frame")
+    if frac > 0.8:
+        flags.append("the segmented region fills most of the frame (background may be included)")
+    if p.solidity < 0.8:
+        flags.append("low solidity: a deeply lobed/compound leaf, a fragmented mask or several leaves")
+    out = dict(
+        units="pixels (original image resolution)", image_size_px=[img.width, img.height],
+        area_px=round(area), perimeter_px=round(per, 1), length_px=round(length, 1), width_px=round(width, 1),
+        bbox_width_px=round((maxc - minc) * sx), bbox_height_px=round((maxr - minr) * sy),
+        leaf_area_fraction=round(frac, 4), aspect_ratio=round(length / max(width, 1e-6), 3),
+        solidity=round(float(p.solidity), 3), eccentricity=round(float(p.eccentricity), 3),
+        extent=round(float(p.extent), 3), circularity=round(min(1.0, 4 * np.pi * area / max(per, 1e-6) ** 2), 3),
+        touches_image_border=bool(minr == 0 or minc == 0 or maxr == h or maxc == w),
+        mean_rgb_in_leaf=[int(x) for x in rgb[m].mean(axis=0)], std_rgb_in_leaf=[round(float(x), 1) for x in rgb[m].std(axis=0)],
+        mean_hsv_in_leaf={"hue_deg": round(float(hsv[..., 0][m].mean() * 360), 1), "saturation": round(float(hsv[..., 1][m].mean()), 3),
+                          "value": round(float(hsv[..., 2][m].mean()), 3)},
+        segmentation_reliability="approximate", reliability_flags=flags,
+        caveat="Segmentation is a colour threshold on one photograph: cluttered backgrounds, shadows, multiple leaves, perspective and lens distortion "
+               "make all values approximate. Colour statistics depend on lighting and camera.")
+    if pixels_per_cm:
+        k = float(pixels_per_cm)
+        out["physical"] = {"area_cm2": round(area / k ** 2, 2), "perimeter_cm": round(per / k, 2), "length_cm": round(length / k, 2),
+                           "width_cm": round(width / k, 2),
+                           "basis": f"user-supplied scale of {k:g} pixels/cm; valid only if the scale object lies in the leaf plane and the photo is not oblique"}
+        reason = "Measurements in original image pixels; physical units are derived from the scale you supplied."
+    else:
+        reason = "Measurements in original image pixels. No scale was supplied, so no cm/mm values are reported."
+    return section(AVAILABLE, reason, **out)
 
 
 def health_section(img):

@@ -20,6 +20,9 @@ from phyllo.paths import SPLIT_4  # noqa: E402
 from phyllo_v2 import environment, ftir, imaging  # noqa: E402
 
 REG = ROOT / "v2" / "data_registry"
+import os  # noqa: E402
+
+os.environ["PHYLLO_RATE_LIMIT"] = "0"      # this suite makes many rapid requests; rate limiting is tested in run_tests_workflow.py
 HEMP = REG / "samples" / "W1_C.xlsx"
 RESULTS = []
 
@@ -188,7 +191,8 @@ def t_env_mock_success():
     assert st["name"] == "Mock Station" and st["distance_km"] < 5 and st["licences"] == ["CC BY 4.0"]
     assert {x["parameter"] for x in st["readings"]} == {"PM2.5", "NO2"}      # temperature is not a pollutant row
     assert st["readings"][0]["timestamp_utc"] and st["readings"][0]["unit"]
-    assert r["indicative_index_from_latest"]["aqi"] == 204 and "not an official AQI" in r["indicative_index_from_latest"]["note"]
+    # only 2 usable pollutants (PM2.5, NO2): CPCB needs >= 3 including PM, so NO index may be shown (corrected behaviour; see env regression tests)
+    assert r["indicative_index_from_latest"] is None and "at least 3 pollutants" in r["index_note"]
     assert "not measured from the leaf" in r["reason"] and r["time_note"]
 
 
@@ -295,12 +299,10 @@ def api_tests():
         def non_leaf():
             p = first_img("Not_a_leaf")
             r = post("/v2/analyze", p.read_bytes(), p.name).json()
-            assert r["phyllotaxy"]["label"] in ("Not_a_leaf", "Unknown/Uncertain"), r["phyllotaxy"]["label"]
-            assert r["phyllotaxy"]["decision_status"] == "NOT_A_LEAF" and r["phyllotaxy"]["guidance"]
-            if r["phyllotaxy"]["label"] == "Not_a_leaf":
-                assert r["morphology"]["status"] == "UNAVAILABLE" and r["leaf_health"]["status"] == "UNAVAILABLE"
-            else:   # leaf-like image re-worded as Unknown/Uncertain: measurements allowed, never a phyllotaxy label
-                assert r["phyllotaxy"]["leaf_like_check"]["leaf_like"] and r["morphology"]["status"] in ("AVAILABLE", "UNAVAILABLE")
+            assert r["phyllotaxy"]["label"] == "Not_a_leaf" and r["phyllotaxy"]["decision_status"] == "NOT_A_LEAF" and r["phyllotaxy"]["guidance"]
+            assert r["phyllotaxy"]["leaf_evidence"]["assessment"] == "likely_non_leaf"
+            assert r["phyllotaxy"]["leaf_evidence"]["p_not_a_leaf"] >= r["phyllotaxy"]["leaf_evidence"]["nonleaf_threshold"]
+            assert r["morphology"]["status"] == "UNAVAILABLE" and r["leaf_health"]["status"] == "UNAVAILABLE"
             assert r["leaf_based_aqi"]["value"] is None
 
         def low_quality():
@@ -347,17 +349,20 @@ def api_tests():
         def unfamiliar_real_leaves():
             sample = sorted((REG / "samples" / "plantdoc_ood").glob("*.[jJ][pP]*[gG]"))
             assert len(sample) >= 10, len(sample)
-            relabelled = 0
+            n_not_leaf = 0
             for p in sample:
                 r = post("/v2/analyze", p.read_bytes(), p.name).json()
                 ph = r["phyllotaxy"]
                 assert ph["decision_status"] != "ACCEPT", (p.name, ph["decision_status"])   # never confidently labelled
                 assert ph["label"] in ("Unknown", "Unknown/Uncertain", "Not_a_leaf") and ph["guidance"] and "familiarity" in ph
                 assert r["leaf_based_aqi"]["value"] is None and r["species"]["status"] == "NOT_SUPPORTED"
-                if ph["decision_status"] == "NOT_A_LEAF" and ph["label"] == "Unknown/Uncertain":
-                    relabelled += 1
-                    assert "leaf_like_check" in ph and "236" in ph["caution"]
-            assert relabelled >= 1, "expected at least one real leaf photo to be re-worded from NOT_A_LEAF to Unknown/Uncertain"
+                le = ph["leaf_evidence"]
+                n_not_leaf += ph["decision_status"] == "NOT_A_LEAF"
+                if ph["decision_status"] == "NOT_A_LEAF":          # a non-leaf verdict now requires P(Not_a_leaf) >= threshold
+                    assert le["p_not_a_leaf"] >= le["nonleaf_threshold"]
+                else:
+                    assert ph["label"] != "Not_a_leaf" and le["assessment"] in ("likely_leaf_unfamiliar_or_unsupported", "unclear", "unassessed_quality")
+            assert n_not_leaf <= len(sample) // 3, f"too many real leaves called non-leaf: {n_not_leaf}/{len(sample)}"
 
         def location_gives_modelled_section_mocked():
             import phyllo_v2.environment as env

@@ -11,6 +11,7 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY phyllo ./phyllo
+COPY phyllo_v2 ./phyllo_v2
 COPY api ./api
 COPY models ./models
 COPY artifacts ./artifacts
@@ -21,4 +22,5 @@ COPY legacy/results ./legacy/results
 RUN useradd -m -u 1000 app && chown -R app /app
 USER app
 EXPOSE 7860
-CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT}"]
+# PHYTORYX API = v1 routes + /v2 routes (api.v2_app). NOT BUILT OR RUN in this project (Docker was not available) - verify before relying on it.
+CMD ["sh", "-c", "uvicorn api.v2_app:app --host 0.0.0.0 --port ${PORT}"]

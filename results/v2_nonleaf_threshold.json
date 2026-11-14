@@ -1,0 +1,77 @@
+{
+  "rule": "(written before running):\n  development leaves  = PlantDoc TRAIN images (CC BY 4.0), minus exact SHA-256 duplicates of any PlantDoc TEST image, minus within-train duplicates\n  development non-leaf = COCO VALIDATION images (local only, not redistributed; the model never trained on them)\n  tau = the largest value of the grid {0.50, 0.55, ..., 0.95} for which ALL development non-leaf images keep P(Not_a_leaf) >= tau\n        (recall 100 % on the 22 COCO validation images).\n  The threshold is written to the artifact ONLY IF the false-NOT_A_LEAF rate on development leaves at tau is <= 10 %;\n  otherwise the artifact is left unchanged (previous argmax behaviour) and this is reported.",
+  "n_dev_leaves": 2330,
+  "excluded_exact_duplicates_of_test": 11,
+  "excluded_within_train_duplicates": 1,
+  "n_dev_nonleaf_coco_val": 22,
+  "coco_val_p_nonleaf_min": 0.9153,
+  "dev_leaf_p_nonleaf_quantiles": {
+    "0.1": 0.1617,
+    "0.5": 0.4915,
+    "0.9": 0.7827,
+    "0.99": 0.8983
+  },
+  "grid": [
+    {
+      "tau": 0.5,
+      "dev_leaf_false_notaleaf_rate": 0.4845,
+      "dev_nonleaf_recall": 1.0
+    },
+    {
+      "tau": 0.55,
+      "dev_leaf_false_notaleaf_rate": 0.3888,
+      "dev_nonleaf_recall": 1.0
+    },
+    {
+      "tau": 0.6,
+      "dev_leaf_false_notaleaf_rate": 0.3103,
+      "dev_nonleaf_recall": 1.0
+    },
+    {
+      "tau": 0.65,
+      "dev_leaf_false_notaleaf_rate": 0.2451,
+      "dev_nonleaf_recall": 1.0
+    },
+    {
+      "tau": 0.7,
+      "dev_leaf_false_notaleaf_rate": 0.1901,
+      "dev_nonleaf_recall": 1.0
+    },
+    {
+      "tau": 0.75,
+      "dev_leaf_false_notaleaf_rate": 0.1369,
+      "dev_nonleaf_recall": 1.0
+    },
+    {
+      "tau": 0.8,
+      "dev_leaf_false_notaleaf_rate": 0.0858,
+      "dev_nonleaf_recall": 1.0
+    },
+    {
+      "tau": 0.85,
+      "dev_leaf_false_notaleaf_rate": 0.0421,
+      "dev_nonleaf_recall": 1.0
+    },
+    {
+      "tau": 0.9,
+      "dev_leaf_false_notaleaf_rate": 0.0086,
+      "dev_nonleaf_recall": 1.0
+    },
+    {
+      "tau": 0.95,
+      "dev_leaf_false_notaleaf_rate": 0.0004,
+      "dev_nonleaf_recall": 0.8636
+    }
+  ],
+  "chosen": {
+    "tau": 0.9,
+    "dev_leaf_false_notaleaf_rate": 0.0086,
+    "dev_nonleaf_recall": 1.0
+  },
+  "chosen_false_rate_ci95_bootstrap": [
+    0.0052,
+    0.0124
+  ],
+  "applied": true,
+  "limits": "exact-duplicate dedup only; 22 development non-leaf images; no leaf-like negatives; PlantDoc test already inspected (exploratory)"
+}

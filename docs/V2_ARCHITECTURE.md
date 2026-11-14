@@ -17,8 +17,15 @@ v1.0.1 is frozen (git tag `v1.0.1`). v2 is additive: new code in `phyllo_v2/`, `
 | Biological (bacteria/fungi) | **Disabled** | cannot be determined from RGB photographs; needs lab/microscopy data |
 | Multimodal fusion | **Not built** | no genuinely paired image + FTIR + pollution records exist |
 
+## Integrated workflow additions (this phase)
+- **Location:** typed place → coordinates via `GET /v2/geocode` (Open-Meteo Geocoding); explicit lat/lon (e.g. browser GPS) always accepted; failures are reported, never guessed.
+- **Environment:** modelled (Open-Meteo/CAMS, keyless; supports the requested collection hour, otherwise current) and measured (OpenAQ, key required; latest readings only) are separate sections; time basis stated explicitly.
+- **Morphology:** now in original image pixels (area, perimeter, length, width, aspect ratio, solidity, circularity, extent, colour statistics) with reliability flags; centimetres only if `pixels_per_cm` is supplied.
+- **Unfamiliar leaves:** `thresholds.nonleaf_probability` (development-selected) gates `NOT_A_LEAF`; additive `decision.leaf_evidence`.
+- **Reports:** `report_id`, `generated_utc`, embedded preview, `combined_interpretation` in the `/v2/analyze` result; `POST /v2/report/pdf` renders the PDF (fpdf2); JSON and printable HTML are generated from the same result.
+
 ## API
-`GET /v2/modules` · `POST /v2/analyze` (multipart: `file`, optional `lat`, `lon`, `collected_at`, `ftir_file`, `ftir_y_units`, `ftir_column`, `ftir_wavenumber_scale`) · `POST /v2/ftir/analyse`. Every response section is `{status, reason, ...}` with status in AVAILABLE / EXPERIMENTAL / USER_INPUT_REQUIRED / UNAVAILABLE / NOT_SUPPORTED / DISABLED.
+`GET /v2/modules` · `GET /v2/geocode?q=` · `POST /v2/analyze` (multipart: `file`, optional `place`, `lat`, `lon`, `collected_at`, `pixels_per_cm`, `ftir_file`, `ftir_y_units`, `ftir_column`, `ftir_wavenumber_scale`) · `POST /v2/report/pdf` (JSON body = an analyze result) · `POST /v2/ftir/analyse`. Every response section is `{status, reason, ...}` with status in AVAILABLE / EXPERIMENTAL / USER_INPUT_REQUIRED / UNAVAILABLE / NOT_SUPPORTED / DISABLED.
 Four kinds of evidence are never merged: official/ambient station data, measured concentrations, leaf-based estimates (withheld) and visible-condition indicators.
 
 ## Data
