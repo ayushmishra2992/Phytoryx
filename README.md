@@ -127,63 +127,6 @@ The following section provides a visual overview of the PHYTORYX application.
 
 **Add your actual application screenshots inside `docs/screenshots/` and replace the filenames below if necessary.**
 
-### 4.1 Main Dashboard
-
-<!-- SCREENSHOT 1: Add the main PHYTORYX dashboard screenshot here -->
-
-![PHYTORYX Main Dashboard](docs/screenshots/01-dashboard.png)
-
-*Figure 1. PHYTORYX main dashboard.*
-
-### 4.2 Leaf Image Upload
-
-<!-- SCREENSHOT 2: Add the leaf image upload interface here -->
-
-![Leaf Image Upload](docs/screenshots/02-leaf-upload.png)
-
-*Figure 2. Leaf image upload and analysis interface.*
-
-### 4.3 Phyllotaxy Classification
-
-<!-- SCREENSHOT 3: Add the classification result screenshot here -->
-
-![Phyllotaxy Classification](docs/screenshots/03-classification.png)
-
-*Figure 3. AI-based phyllotaxy classification results.*
-
-### 4.4 Morphological Analysis
-
-<!-- SCREENSHOT 4: Add the morphological analysis screenshot here -->
-
-![Morphological Analysis](docs/screenshots/04-morphology.png)
-
-*Figure 4. Extracted leaf morphological characteristics.*
-
-### 4.5 FTIR Spectral Analysis
-
-<!-- SCREENSHOT 5: Add the FTIR analysis screenshot here -->
-
-![FTIR Analysis](docs/screenshots/05-ftir.png)
-
-*Figure 5. FTIR spectral interpretation interface.*
-
-### 4.6 Environmental Analysis
-
-<!-- SCREENSHOT 6: Add the environmental analysis screenshot here -->
-
-![Environmental Analysis](docs/screenshots/06-environment.png)
-
-*Figure 6. Location-based environmental information.*
-
-### 4.7 Generated Reports
-
-<!-- SCREENSHOT 7: Add a PDF or HTML report screenshot here -->
-
-![Generated Report](docs/screenshots/07-report.png)
-
-*Figure 7. Consolidated PHYTORYX analytical report.*
-
----
 
 ## 5. System Architecture
 
@@ -492,10 +435,11 @@ We acknowledge the researchers, open-source communities, documentation teams and
 
 **Tagline:** Intelligence Rooted in Nature.
 
-**GitHub:** [Ayush Mishra](https://github.com/ayushmishra2992)
+**Authors:**
+- [Ayush Mishra](https://github.com/ayushmishra2992)
+- [Riya Katiyar](https://github.com/riyakatiyar123)
 
 **Repository:** [PHYTORYX](https://github.com/ayushmishra2992/Phytoryx)
-
 ---
 
 <p align="center">
